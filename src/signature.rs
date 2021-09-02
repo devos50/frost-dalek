@@ -78,15 +78,19 @@ impl PartialEq for Signer {
 /// signing protocol during the first phase of a signature creation.
 #[derive(Debug)]
 pub struct PartialThresholdSignature {
-    pub(crate) index: u32,
-    pub(crate) z: Scalar,
+    /// the participant index
+    pub index: u32,
+    /// the signature
+    pub z: Scalar,
 }
 
 /// A complete, aggregated threshold signature.
 #[derive(Debug)]
 pub struct ThresholdSignature {
-    pub(crate) R: RistrettoPoint,
-    pub(crate) z: Scalar,
+    /// R
+    pub R: RistrettoPoint,
+    /// z
+    pub z: Scalar,
 }
 
 impl ThresholdSignature {
@@ -166,14 +170,14 @@ impl_indexed_hashmap!(Type = SignerRs, Item = RistrettoPoint);
 
 /// A type for storing signers' partial threshold signatures along with the
 /// respective signer participant index.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub(crate) struct PartialThresholdSignatures(pub(crate) HashMap<[u8; 4], Scalar>);
 
 impl_indexed_hashmap!(Type = PartialThresholdSignatures, Item = Scalar);
 
 /// A type for storing signers' individual public keys along with the respective
 /// signer participant index.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub(crate) struct IndividualPublicKeys(pub(crate) HashMap<[u8; 4], RistrettoPoint>);
 
 impl_indexed_hashmap!(Type = IndividualPublicKeys, Item = RistrettoPoint);
@@ -359,8 +363,8 @@ impl SecretKey {
 pub trait Aggregator {}
 
 /// The internal state of a signature aggregator.
-#[derive(Debug)]
-pub(crate) struct AggregatorState {
+#[derive(Debug,Clone)]
+pub struct AggregatorState {
     /// The protocol instance parameters.
     pub(crate) parameters: Parameters,
     /// The set of signing participants for this round.
@@ -379,25 +383,25 @@ pub(crate) struct AggregatorState {
 /// [`PartialThresholdSignature`] and creates the final [`ThresholdSignature`].
 /// The signature aggregator may even be one of the \\(t\\) participants in this
 /// signing operation.
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct SignatureAggregator<A: Aggregator> {
     /// The aggregator's actual state, shared across types.
-    pub(crate) state: Box<AggregatorState>,
+    pub state: Box<AggregatorState>,
     /// The aggregator's additional state.
-    pub(crate) aggregator: A,
+    pub aggregator: A,
 }
 
 /// The initial state for a [`SignatureAggregator`], which may include invalid
 /// or non-sensical data.
-#[derive(Debug)]
-pub struct Initial<'sa> {
+#[derive(Debug,Clone)]
+pub struct Initial {
     /// An optional context string for computing the message hash.
-    pub(crate) context: &'sa [u8],
+    pub(crate) context: Vec<u8>,
     /// The message to be signed.
-    pub(crate) message: &'sa [u8],
+    pub(crate) message: Vec<u8>,
 }
 
-impl Aggregator for Initial<'_> {}
+impl Aggregator for Initial {}
 
 /// The finalized state for a [`SignatureAggregator`], which has thoroughly
 /// validated its data.
@@ -421,7 +425,7 @@ pub struct Finalized {
 
 impl Aggregator for Finalized {}
 
-impl SignatureAggregator<Initial<'_>> {
+impl SignatureAggregator<Initial> {
     /// Construct a new signature aggregator from some protocol instantiation
     /// `parameters` and a `message` to be signed.
     ///
@@ -446,13 +450,13 @@ impl SignatureAggregator<Initial<'_>> {
         group_key: GroupKey,
         context: &'sa [u8],
         message: &'sa [u8],
-    ) -> SignatureAggregator<Initial<'sa>> {
+    ) -> SignatureAggregator<Initial> {
         let signers: Vec<Signer> = Vec::with_capacity(parameters.t as usize);
         let public_keys = IndividualPublicKeys::new();
         let partial_signatures = PartialThresholdSignatures::new();
         let state = AggregatorState { parameters, signers, public_keys, partial_signatures, group_key };
 
-        SignatureAggregator { state: Box::new(state), aggregator: Initial { context, message } }
+        SignatureAggregator { state: Box::new(state), aggregator: Initial { context: context.to_vec(), message: message.to_vec() } }
     }
 
     /// Include a signer in the protocol.
